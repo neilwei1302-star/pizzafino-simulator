@@ -67,6 +67,17 @@ export interface Strategy {
   quality?: 'Good' | 'Bad'; // Categorization for post-execution analysis
   successLog?: string;
   failureLog?: string;
+  investorMemo?: string; // Harsh feedback for bad strategies
+}
+
+export interface MacroShock {
+  id: string;
+  title: string;
+  description: string;
+  duration: number; // Months remaining
+  type: 'positive' | 'negative';
+  // Function to apply the shock's effect to the state
+  apply: (state: FinancialState) => FinancialState;
 }
 
 export interface GameLog {
@@ -81,4 +92,9 @@ export interface HistoryData {
   profit: number;
   cash: number;
   stockPrice: number;
+  cogs: number;
+  operatingExpenses: number;
+  depreciation: number;
+  interest: number;
+  tax: number;
 }
