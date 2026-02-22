@@ -174,7 +174,7 @@ const App: React.FC = () => {
     if (isPlaying && !showEarningsModal) {
       timerRef.current = window.setInterval(() => {
         advanceMonth();
-      }, 25000); 
+      }, 60000); 
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
