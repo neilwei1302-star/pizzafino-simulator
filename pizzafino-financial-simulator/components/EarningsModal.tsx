@@ -270,7 +270,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                             onDragOver={handleDragOver}
                                             onDrop={(e) => handleDrop(e, id)}
                                             className={`
-                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm
+                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm group
                                                 ${zone.isCorrect 
                                                     ? 'bg-green-50 border-green-200 border-solid' 
                                                     : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -278,7 +278,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span className="font-bold text-gray-600 truncate mr-2">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -309,7 +309,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                             onDragOver={handleDragOver}
                                             onDrop={(e) => handleDrop(e, id)}
                                             className={`
-                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm
+                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm group
                                                 ${zone.isCorrect 
                                                     ? 'bg-green-50 border-green-200 border-solid' 
                                                     : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -317,7 +317,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span className="font-bold text-gray-600 truncate mr-2">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -348,7 +348,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                             onDragOver={handleDragOver}
                                             onDrop={(e) => handleDrop(e, id)}
                                             className={`
-                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm
+                                                flex justify-between items-center p-3 rounded-lg border-2 border-dashed transition-all text-sm group
                                                 ${zone.isCorrect 
                                                     ? 'bg-green-50 border-green-200 border-solid' 
                                                     : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -356,7 +356,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span className="font-bold text-gray-600 truncate mr-2">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -380,3 +380,4 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
 };
 
 export default EarningsModal;
+
