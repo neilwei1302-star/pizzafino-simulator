@@ -16,10 +16,17 @@ export const generateInvestorFeedback = async (
     const ai = getClient();
     
     // Calculate cumulative stats
-    const totalRevenue = history.reduce((acc, curr) => acc + curr.revenue, 0);
-    const totalProfit = history.reduce((acc, curr) => acc + curr.profit, 0);
+    // Filter out intermediate ticks (fractional months) to avoid double counting
+    const completedMonths = history.filter(h => Number.isInteger(h.month));
+    const totalRevenue = completedMonths.reduce((acc, curr) => acc + curr.revenue, 0);
+    const totalProfit = completedMonths.reduce((acc, curr) => acc + curr.profit, 0);
     const currentStockPrice = history[history.length - 1]?.stockPrice || 0;
     
+    // Quarterly Stats
+    const reportingPeriod = completedMonths.slice(-3);
+    const qRevenue = reportingPeriod.reduce((acc, curr) => acc + curr.revenue, 0);
+    const qProfit = reportingPeriod.reduce((acc, curr) => acc + curr.profit, 0);
+
     const prompt = `
       You are a brutal, cynical, and hard-to-please Wall Street Equity Analyst covering "PizzaFino".
       It is Month ${month} of operations.
@@ -27,17 +34,17 @@ export const generateInvestorFeedback = async (
       MARKET CONTEXT:
       The restaurant sector is crowded. Margins are usually thin. Investors are impatient.
       
-      FINANCIALS:
+      FINANCIALS (LIFETIME):
       - Cumulative Revenue: $${totalRevenue.toLocaleString()}
       - Cumulative Net Income (Profit/Loss): $${totalProfit.toLocaleString()}
       - Current Cash: $${financials.cash.toLocaleString()}
       - Current Stock Price: $${currentStockPrice.toFixed(2)}
       - Total Debt (Loans): $${financials.liabilities.loans.toLocaleString()}
       
-      LATEST MONTH:
-      - Revenue: $${financials.revenue.toLocaleString()}
-      - Profit: $${financials.netIncome.toLocaleString()}
-      - Margin: ${((financials.netIncome / financials.revenue) * 100).toFixed(1)}% (Industry avg is 10-15%)
+      LATEST QUARTER (Last 3 Months):
+      - Revenue: $${qRevenue.toLocaleString()}
+      - Profit: $${qProfit.toLocaleString()}
+      - Margin: ${((qProfit / qRevenue) * 100).toFixed(1)}% (Industry avg is 10-15%)
       - Satisfaction: ${Math.round(financials.customerSatisfaction)}/100
 
       TASK:
