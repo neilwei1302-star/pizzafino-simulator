@@ -39,7 +39,12 @@ const App: React.FC = () => {
       revenue: INITIAL_STATE.revenue, 
       profit: INITIAL_STATE.netIncome,
       cash: INITIAL_STATE.cash,
-      stockPrice: initialStockPrice
+      stockPrice: initialStockPrice,
+      cogs: INITIAL_STATE.cogs,
+      operatingExpenses: INITIAL_STATE.operatingExpenses,
+      depreciation: INITIAL_STATE.depreciation,
+      interest: INITIAL_STATE.interest,
+      tax: INITIAL_STATE.tax
   }]);
   const [showEarningsModal, setShowEarningsModal] = useState(false);
   
@@ -63,7 +68,7 @@ const App: React.FC = () => {
   const [cashEffect, setCashEffect] = useState<{ val: number, id: number } | null>(null);
 
   const timerRef = useRef<number | null>(null);
-  const earningsTimerRef = useRef<number | null>(null);
+  const tickRef = useRef(0);
 
   // --- Helper: Pick a strategy based on current cash ---
   const pickNextStrategy = (currentPool: Strategy[], currentCash: number): Strategy | null => {
@@ -139,22 +144,6 @@ const App: React.FC = () => {
     setStrategyPool(pool);
   }, []);
 
-  // --- Earnings Report Timer ---
-  useEffect(() => {
-    if (isPlaying && !showEarningsModal) {
-        if (earningsTimerRef.current) clearInterval(earningsTimerRef.current);
-        earningsTimerRef.current = window.setInterval(() => {
-            setIsPlaying(false);
-            setShowEarningsModal(true);
-        }, 180000); 
-    } else {
-        if (earningsTimerRef.current) clearInterval(earningsTimerRef.current);
-    }
-    return () => {
-        if (earningsTimerRef.current) clearInterval(earningsTimerRef.current);
-    };
-  }, [isPlaying, showEarningsModal]);
-
   // --- Deck Cooldown Timer ---
   useEffect(() => {
     let interval: number;
@@ -173,8 +162,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isPlaying && !showEarningsModal) {
       timerRef.current = window.setInterval(() => {
-        advanceMonth();
-      }, 60000); 
+        processTick(month);
+      }, 20000); 
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -183,125 +172,179 @@ const App: React.FC = () => {
     };
   }, [isPlaying, showEarningsModal, month]);
 
-  const advanceMonth = () => {
-    setMonth((prevMonth) => {
-      const nextMonth = prevMonth + 1;
+  const processTick = (currentMonth: number) => {
+    const currentTick = tickRef.current;
+    const isMonthStart = currentTick === 0;
+    const isMonthEnd = currentTick === 2;
+
+    setGameState((prev) => {
+      // --- 1. Operations Simulation (10 Days) ---
+      const demandFlux = 0.95 + Math.random() * 0.15; // More volatility
+      // Calculate 10 days of orders
+      const tickOrders = Math.floor(prev.dailyOrders * 10 * demandFlux);
       
-      setGameState((prev) => {
-        // --- 1. Operations Simulation ---
-        const demandFlux = 0.95 + Math.random() * 0.10; 
-        const actualOrders = Math.floor(prev.dailyOrders * 30 * demandFlux);
+      const tickRevenue = tickOrders * prev.averageOrderValue;
+      // COGS ratio from previous state (or base)
+      const cogsRatio = prev.revenue > 0 ? prev.cogs / prev.revenue : 0.3;
+      const tickCogs = tickRevenue * cogsRatio;
+      const tickGrossProfit = tickRevenue - tickCogs;
+      
+      // Expenses are monthly, so take ~1/3rd
+      const tickOpEx = (prev.operatingExpenses / 3) * (1 + (Math.random() * 0.05 - 0.025)); 
+      
+      // Amortization (1/3rd of monthly)
+      const tickAmortization = (prev.deferredStrategyCosts * 0.35) / 3;
+      const newDeferredCosts = prev.deferredStrategyCosts - tickAmortization;
+
+      const tickEbitda = tickGrossProfit - tickOpEx - tickAmortization;
+      const tickDepreciation = (prev.assets.equipment * 0.01) / 3; 
+      const tickEbit = tickEbitda - tickDepreciation;
+      const tickInterest = (prev.liabilities.loans * 0.01) / 3;
+      const tickEbt = tickEbit - tickInterest;
+      
+      // Tax is usually calculated at end, but we can accrue it
+      const tickTax = tickEbt > 0 ? tickEbt * 0.20 : 0;
+      const tickNetIncome = tickEbt - tickTax;
+
+      // Cash Flow Impacts
+      const tickPrincipalRepayment = (prev.liabilities.loans * 0.005) / 3;
+      const nextLoans = prev.liabilities.loans - tickPrincipalRepayment;
+      
+      // AP Logic (Simplified for tick)
+      const tickApPayment = (prev.liabilities.accountsPayable * 0.5) / 3;
+      const tickNewAp = (tickCogs * 0.5) + (tickOpEx * 0.3);
+      const nextAp = (prev.liabilities.accountsPayable - tickApPayment) + tickNewAp;
+      const apDelta = nextAp - prev.liabilities.accountsPayable;
+
+      const tickOperatingCashFlow = tickNetIncome + tickDepreciation + tickAmortization;
+      
+      // AR Logic
+      const tickNewAR = tickRevenue * 0.1;
+      // We collect some old AR
+      const tickArCollection = prev.assets.accountsReceivable * 0.3; // Collect 30% of outstanding
+      const nextAR = (prev.assets.accountsReceivable - tickArCollection) + tickNewAR;
+      const arDelta = nextAR - prev.assets.accountsReceivable;
+
+      // Inventory Logic
+      const targetInventory = tickCogs * 1.5; // Keep 1.5x tick consumption
+      const inventoryChange = prev.assets.inventory > targetInventory 
+          ? -(tickCogs * 0.2) // Burn down
+          : (targetInventory - prev.assets.inventory) * 0.5; // Build up
+      const nextInventory = prev.assets.inventory + inventoryChange;
+      const inventoryDelta = inventoryChange;
+
+      const finalCash = prev.assets.cash + tickOperatingCashFlow - arDelta - inventoryDelta + apDelta - tickPrincipalRepayment;
+      const newAccumDepreciation = prev.assets.accumulatedDepreciation + tickDepreciation;
+
+      // --- Accumulate or Reset ---
+      // If start of month, we reset the P&L accumulators to the current tick's values
+      // If mid-month, we add current tick to previous
+      const newRevenue = isMonthStart ? tickRevenue : prev.revenue + tickRevenue;
+      const newCogs = isMonthStart ? tickCogs : prev.cogs + tickCogs;
+      const newGrossProfit = isMonthStart ? tickGrossProfit : prev.grossProfit + tickGrossProfit;
+      const newOpEx = isMonthStart ? tickOpEx : prev.operatingExpenses + tickOpEx;
+      const newEbitda = isMonthStart ? tickEbitda : prev.ebitda + tickEbitda;
+      const newDepreciation = isMonthStart ? tickDepreciation : prev.depreciation + tickDepreciation;
+      const newEbit = isMonthStart ? tickEbit : prev.ebit + tickEbit;
+      const newInterest = isMonthStart ? tickInterest : prev.interest + tickInterest;
+      const newTax = isMonthStart ? tickTax : prev.tax + tickTax;
+      const newNetIncome = isMonthStart ? tickNetIncome : prev.netIncome + tickNetIncome;
+      const newAmortization = isMonthStart ? tickAmortization : prev.amortizationExpense + tickAmortization;
+
+      // --- Valuation (Annualized based on current month pace) ---
+      // If we are at tick 0 (10 days), multiply by 3 to project month, then 12 for year
+      const projectionMultiplier = isMonthStart ? 3 : (currentTick === 1 ? 1.5 : 1);
+      const annualizedRevenue = newRevenue * projectionMultiplier * 12;
+      const annualizedEbitda = newEbitda * projectionMultiplier * 12;
+      
+      const netDebt = nextLoans - finalCash;
+      let enterpriseValue = (annualizedRevenue * 0.5) + (annualizedEbitda * 5);
+      if (enterpriseValue < 0) enterpriseValue = 0; 
+
+      const equityValue = enterpriseValue - netDebt;
+      let newStockPrice = Math.max(0.01, equityValue / 100000);
+      
+      // Add some random noise to stock price
+      newStockPrice *= (0.98 + Math.random() * 0.04);
+
+      const nextState: FinancialState = {
+        ...prev,
+        cash: finalCash,
+        revenue: newRevenue,
+        cogs: newCogs,
+        grossProfit: newGrossProfit,
+        operatingExpenses: newOpEx,
+        deferredStrategyCosts: newDeferredCosts,
+        amortizationExpense: newAmortization,
+        oneTimeExpenses: isMonthStart ? 0 : prev.oneTimeExpenses, // Reset monthly
+        capitalExpenditures: isMonthStart ? 0 : prev.capitalExpenditures,
+        cashFlowFromInvesting: isMonthStart ? 0 : prev.cashFlowFromInvesting,
+        cashFlowFromFinancing: isMonthStart ? 0 : prev.cashFlowFromFinancing,
+        ebitda: newEbitda,
+        depreciation: newDepreciation,
+        ebit: newEbit,
+        interest: newInterest,
+        tax: newTax,
+        netIncome: newNetIncome,
         
-        const revenue = actualOrders * prev.averageOrderValue;
-        const cogs = revenue * (prev.cogs / prev.revenue); 
-        const grossProfit = revenue - cogs;
-        const operatingExpenses = prev.operatingExpenses * (1 + (Math.random() * 0.02 - 0.01)); 
-        
-        const amortizationExpense = prev.deferredStrategyCosts * 0.35;
-        const newDeferredCosts = prev.deferredStrategyCosts - amortizationExpense;
-
-        const ebitda = grossProfit - operatingExpenses - amortizationExpense;
-        const depreciation = prev.assets.equipment * 0.01; 
-        const ebit = ebitda - depreciation;
-        const interest = prev.liabilities.loans * 0.01;
-        const ebt = ebit - interest;
-        const tax = ebt > 0 ? ebt * 0.20 : 0;
-        const netIncome = ebt - tax;
-
-        const principalRepayment = prev.liabilities.loans * 0.005;
-        const nextLoans = prev.liabilities.loans - principalRepayment;
-        const apPayment = prev.liabilities.accountsPayable * 0.5;
-        // Delay cash impact: 50% of COGS and 30% of OpEx are on credit (AP)
-        const newApFromOps = (cogs * 0.5) + (operatingExpenses * 0.3);
-        const nextAp = (prev.liabilities.accountsPayable - apPayment) + newApFromOps;
-        const apDelta = nextAp - prev.liabilities.accountsPayable; 
-
-        const operatingCashFlow = netIncome + depreciation + amortizationExpense; 
-        const newRetainedEarnings = prev.equity.retainedEarnings + netIncome;
-        
-        const newAR = revenue * 0.1;
-        const arDelta = newAR - prev.assets.accountsReceivable; 
-        
-        const targetInventory = cogs * 0.5;
-        const newInventory = prev.assets.inventory > targetInventory 
-            ? prev.assets.inventory - (cogs * 0.2) 
-            : targetInventory;
-            
-        const inventoryDelta = newInventory - prev.assets.inventory; 
-
-        const finalCash = prev.assets.cash + operatingCashFlow - arDelta - inventoryDelta + apDelta - principalRepayment;
-        const newAccumDepreciation = prev.assets.accumulatedDepreciation + depreciation;
-
-        const annualizedRevenue = revenue * 12;
-        const annualizedEbitda = ebitda * 12;
-        const netDebt = nextLoans - finalCash;
-        let enterpriseValue = (annualizedRevenue * 0.5) + (annualizedEbitda * 5);
-        if (enterpriseValue < 0) enterpriseValue = 0; 
-
-        const equityValue = enterpriseValue - netDebt;
-        let newStockPrice = Math.max(0.01, equityValue / 100000);
-
-        const nextState: FinancialState = {
-          ...prev,
+        assets: {
+          ...prev.assets,
           cash: finalCash,
-          revenue,
-          cogs,
-          grossProfit,
-          operatingExpenses,
-          deferredStrategyCosts: newDeferredCosts,
-          amortizationExpense,
-          oneTimeExpenses: 0,
-          capitalExpenditures: 0,
-          cashFlowFromInvesting: 0, // Reset monthly
-          cashFlowFromFinancing: 0, // Reset monthly
-          ebitda,
-          depreciation,
-          ebit,
-          interest,
-          tax,
-          netIncome,
-          assets: {
-            ...prev.assets,
-            cash: finalCash,
-            inventory: newInventory,
-            accountsReceivable: newAR,
-            accumulatedDepreciation: newAccumDepreciation,
-            prepaidExpenses: newDeferredCosts, 
-            equipment: prev.assets.equipment 
-          },
-          equity: {
-            ...prev.equity,
-            retainedEarnings: newRetainedEarnings
-          },
-          liabilities: {
-            ...prev.liabilities,
-            accountsPayable: nextAp,
-            loans: nextLoans
-          }
-        };
+          accountsReceivable: nextAR,
+          inventory: nextInventory,
+          accumulatedDepreciation: newAccumDepreciation,
+          equipment: prev.assets.equipment,
+          prepaidExpenses: newDeferredCosts
+        },
+        liabilities: {
+          ...prev.liabilities,
+          accountsPayable: nextAp,
+          loans: nextLoans,
+        },
+        equity: {
+          ...prev.equity,
+          retainedEarnings: prev.equity.retainedEarnings + tickNetIncome, // Always accumulate RE
+        },
+        stockPrice: newStockPrice
+      };
 
-        const newDataPoint = {
-            month: nextMonth,
-            revenue,
-            profit: netIncome,
-            cash: finalCash,
-            stockPrice: newStockPrice
-        };
-        setHistory(h => [...h, newDataPoint]);
+      // Handle Month End Logic (History)
+      // We update history every tick to show fluctuations
+      const historyMonth = currentMonth + (currentTick + 1) / 3;
+      setHistory(h => [...h, {
+          month: historyMonth,
+          revenue: newRevenue * projectionMultiplier, // Projected monthly revenue
+          profit: newNetIncome * projectionMultiplier, // Projected monthly profit
+          cash: finalCash,
+          stockPrice: newStockPrice,
+          cogs: newCogs * projectionMultiplier,
+          operatingExpenses: newOpEx * projectionMultiplier,
+          depreciation: newDepreciation * projectionMultiplier,
+          interest: newInterest * projectionMultiplier,
+          tax: newTax * projectionMultiplier
+      }]);
 
-        return nextState;
-      });
-      
-      setCooldowns(prev => {
-        const next = { ...prev };
-        Object.keys(next).forEach(key => {
-            if (next[key] > 0) next[key] -= 1;
-        });
-        return next;
-      });
-
-      return nextMonth;
+      return nextState;
     });
+
+    if (isMonthEnd) {
+        if (currentMonth % 3 === 0) {
+            setIsPlaying(false);
+            setShowEarningsModal(true);
+        }
+
+        setMonth(m => m + 1);
+        setCooldowns(cd => {
+            const next = { ...cd };
+            Object.keys(next).forEach(key => {
+                if (next[key] > 0) next[key] -= 1;
+            });
+            return next;
+        });
+        tickRef.current = 0;
+    } else {
+        tickRef.current += 1;
+    }
   };
 
   // --- CLICK: Execute Strategy ---
@@ -622,7 +665,7 @@ const App: React.FC = () => {
             <ResponsiveContainer width="100%" height="85%">
               <LineChart data={history}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `M${val}`} />
+                <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} tickFormatter={(val) => Number.isInteger(val) ? `M${val}` : ''} />
                 <YAxis yAxisId="left" stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `$${val/1000}k`} />
                 <YAxis yAxisId="right" orientation="right" stroke="#8884d8" fontSize={12} tickFormatter={(val) => `$${val}`} />
                 <Tooltip 
