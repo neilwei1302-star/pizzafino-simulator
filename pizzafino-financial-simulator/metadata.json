@@ -1,0 +1,5 @@
+{
+  "name": "PizzaFino Financial Simulator",
+  "description": "A gamified business simulation to learn financial statements (Income, Balance, Cash Flow) by running a Pizzeria. Utilize strategic decisions to boost revenue and profit, and report to AI investors.",
+  "requestFramePermissions": []
+}
