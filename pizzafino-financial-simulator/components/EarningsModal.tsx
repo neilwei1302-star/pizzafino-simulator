@@ -41,28 +41,41 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
         setFeedbackData(null);
         setIsAnalyzing(false);
         
+        // Calculate Quarterly Totals from History
+        // We need the last 3 completed months.
+        const completedMonths = history.filter(h => Number.isInteger(h.month));
+        const reportingPeriod = completedMonths.slice(-3);
+
+        const qRevenue = reportingPeriod.reduce((acc, curr) => acc + curr.revenue, 0);
+        const qCogs = reportingPeriod.reduce((acc, curr) => acc + (curr.cogs || 0), 0);
+        const qOpEx = reportingPeriod.reduce((acc, curr) => acc + (curr.operatingExpenses || 0), 0);
+        const qDepreciation = reportingPeriod.reduce((acc, curr) => acc + (curr.depreciation || 0), 0);
+        const qInterest = reportingPeriod.reduce((acc, curr) => acc + (curr.interest || 0), 0);
+        const qTax = reportingPeriod.reduce((acc, curr) => acc + (curr.tax || 0), 0);
+        const qNetIncome = reportingPeriod.reduce((acc, curr) => acc + curr.profit, 0);
+
         // Calculate splits for difficulty
-        const wages = Math.floor(financials.operatingExpenses * 0.55);
-        const overhead = financials.operatingExpenses - wages;
-        const operatingCashFlow = financials.netIncome + financials.depreciation;
+        const wages = Math.floor(qOpEx * 0.55);
+        const overhead = qOpEx - wages;
+        const operatingCashFlow = qNetIncome + qDepreciation;
 
         // Create Draggable Items (Scrambled & Obscured)
         const newItems: DraggableItem[] = [
-            { id: 'rev', label: 'POS Sales Report', value: financials.revenue, category: 'income' },
-            { id: 'cogs', label: 'Sysco Ingredient Invoices', value: financials.cogs, category: 'income' },
+            { id: 'rev', label: 'POS Sales Report (Qtr)', value: qRevenue, category: 'income' },
+            { id: 'cogs', label: 'Sysco Ingredient Invoices', value: qCogs, category: 'income' },
             { id: 'wages', label: 'Staff Payroll & Benefits', value: wages, category: 'income' },
             { id: 'overhead', label: 'Rent, Utilities & Insurance', value: overhead, category: 'income' },
-            { id: 'depr', label: 'Equipment Wear & Tear', value: financials.depreciation, category: 'income' },
-            { id: 'interest', label: 'Bank Loan Interest', value: financials.interest, category: 'income' },
-            { id: 'tax', label: 'Income Tax Provision', value: financials.tax, category: 'income' },
+            { id: 'depr', label: 'Equipment Wear & Tear', value: qDepreciation, category: 'income' },
+            { id: 'interest', label: 'Bank Loan Interest', value: qInterest, category: 'income' },
+            { id: 'tax', label: 'Income Tax Provision', value: qTax, category: 'income' },
             
             { id: 'cash', label: 'Bank Account Balance', value: financials.assets.cash, category: 'balance' },
             { id: 'inventory', label: 'Warehouse Stock Count', value: financials.assets.inventory, category: 'balance' },
             { id: 'debt', label: 'Outstanding Principal', value: financials.liabilities.loans, category: 'balance' },
             
             { id: 'ocf', label: 'Net Cash from Ops', value: operatingCashFlow, category: 'cashflow' },
-            { id: 'icf', label: 'CapEx & Investments', value: financials.cashFlowFromInvesting, category: 'cashflow' },
-            { id: 'fcf', label: 'Stock & Loan Activities', value: financials.cashFlowFromFinancing, category: 'cashflow' },
+            { id: 'icf', label: 'CapEx & Investments', value: financials.cashFlowFromInvesting * 3, category: 'cashflow' },
+            { id: 'fcf', label: 'Stock & Loan Activities', value: financials.cashFlowFromFinancing * 3, category: 'cashflow' },
         ].sort(() => Math.random() - 0.5);
         
         setItems(newItems);
@@ -70,13 +83,13 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
         // Create Drop Zones
         setZones([
             // Income Statement
-            { id: 'z_rev', label: 'Total Revenue', expectedValue: financials.revenue, isCorrect: false, category: 'income' },
-            { id: 'z_cogs', label: 'Cost of Goods Sold', expectedValue: financials.cogs, isCorrect: false, category: 'income' },
+            { id: 'z_rev', label: 'Total Revenue', expectedValue: qRevenue, isCorrect: false, category: 'income' },
+            { id: 'z_cogs', label: 'Cost of Goods Sold', expectedValue: qCogs, isCorrect: false, category: 'income' },
             { id: 'z_wages', label: 'Wages & Salaries', expectedValue: wages, isCorrect: false, category: 'income' },
             { id: 'z_overhead', label: 'Rent & Overhead', expectedValue: overhead, isCorrect: false, category: 'income' },
-            { id: 'z_depr', label: 'Depreciation', expectedValue: financials.depreciation, isCorrect: false, category: 'income' },
-            { id: 'z_interest', label: 'Interest Expense', expectedValue: financials.interest, isCorrect: false, category: 'income' },
-            { id: 'z_tax', label: 'Taxes', expectedValue: financials.tax, isCorrect: false, category: 'income' },
+            { id: 'z_depr', label: 'Depreciation', expectedValue: qDepreciation, isCorrect: false, category: 'income' },
+            { id: 'z_interest', label: 'Interest Expense', expectedValue: qInterest, isCorrect: false, category: 'income' },
+            { id: 'z_tax', label: 'Taxes', expectedValue: qTax, isCorrect: false, category: 'income' },
 
             // Balance Sheet
             { id: 'z_cash', label: 'Cash & Equivalents', expectedValue: financials.assets.cash, isCorrect: false, category: 'balance' },
@@ -85,11 +98,11 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
 
             // Cash Flow
             { id: 'z_ocf', label: 'Operating Cash Flow', expectedValue: operatingCashFlow, isCorrect: false, category: 'cashflow' },
-            { id: 'z_icf', label: 'Investing Cash Flow', expectedValue: financials.cashFlowFromInvesting, isCorrect: false, category: 'cashflow' },
-            { id: 'z_fcf', label: 'Financing Cash Flow', expectedValue: financials.cashFlowFromFinancing, isCorrect: false, category: 'cashflow' },
+            { id: 'z_icf', label: 'Investing Cash Flow', expectedValue: financials.cashFlowFromInvesting * 3, isCorrect: false, category: 'cashflow' },
+            { id: 'z_fcf', label: 'Financing Cash Flow', expectedValue: financials.cashFlowFromFinancing * 3, isCorrect: false, category: 'cashflow' },
         ]);
     }
-  }, [isOpen, financials]);
+  }, [isOpen, financials, history]);
 
   // Check for Completion
   useEffect(() => {
@@ -278,7 +291,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 mr-2 overflow-hidden text-ellipsis whitespace-nowrap group-hover:whitespace-normal group-hover:overflow-visible group-hover:h-auto">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -317,7 +330,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 mr-2 overflow-hidden text-ellipsis whitespace-nowrap group-hover:whitespace-normal group-hover:overflow-visible group-hover:h-auto">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -356,7 +369,7 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
                                                 ${shakeZone === id ? 'animate-shake border-red-400 bg-red-50' : ''}
                                             `}
                                         >
-                                            <span title={zone.label} className="font-bold text-gray-600 truncate mr-2 group-hover:overflow-visible group-hover:whitespace-normal">{zone.label}</span>
+                                            <span title={zone.label} className="font-bold text-gray-600 mr-2 overflow-hidden text-ellipsis whitespace-nowrap group-hover:whitespace-normal group-hover:overflow-visible group-hover:h-auto">{zone.label}</span>
                                             {zone.isCorrect ? (
                                                 <span className="font-mono font-bold text-green-700 flex items-center gap-1 text-xs">
                                                     ${Math.round(zone.expectedValue).toLocaleString()}
@@ -380,4 +393,3 @@ const EarningsModal: React.FC<Props> = ({ month, financials, history, onClose, i
 };
 
 export default EarningsModal;
-
